@@ -3,6 +3,7 @@ package com.vietsoftware.roommanagement.exception;
 import com.vietsoftware.roommanagement.dto.response.ErrorResponse;
 import jakarta.validation.ConstraintViolation;
 import jakarta.validation.ConstraintViolationException;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
@@ -22,6 +23,7 @@ import java.util.stream.Collectors;
 /**
  * Global REST controller advice intercepting exceptions thrown across controllers and returning a standardized {@link ErrorResponse}.
  */
+@Slf4j
 @RestControllerAdvice
 public class GlobalExceptionHandler {
 
@@ -33,6 +35,11 @@ public class GlobalExceptionHandler {
      */
     @ExceptionHandler(AppException.class)
     public ResponseEntity<ErrorResponse> handleAppException(AppException ex) {
+        log.warn(
+                "Application exception occurred. code={}, message={}",
+                ex.getErrorCode().name(),
+                ex.getMessage()
+        );
         return buildErrorResponse(ex.getErrorCode(), null, null);
     }
 
@@ -51,6 +58,10 @@ public class GlobalExceptionHandler {
                         FieldError::getField,
                         Collectors.mapping(FieldError::getDefaultMessage, Collectors.toList())
                 ));
+        log.warn(
+                "Request validation failed. errors={}",
+                fieldErrors
+        );
 
         return buildErrorResponse(
                 ErrorCode.INVALID_REQUEST,
@@ -72,7 +83,10 @@ public class GlobalExceptionHandler {
                         violation -> violation.getPropertyPath().toString(),
                         Collectors.mapping(ConstraintViolation::getMessage, Collectors.toList())
                 ));
-
+        log.warn(
+                "Constraint validation failed. errors={}",
+                errors
+        );
         return buildErrorResponse(
                 ErrorCode.INVALID_REQUEST,
                 "Entity constraint validation failed",
@@ -90,6 +104,7 @@ public class GlobalExceptionHandler {
     public ResponseEntity<ErrorResponse> handleTransactionSystem(TransactionSystemException ex) {
         Throwable cause = ex.getRootCause();
         if (cause instanceof ConstraintViolationException constraintEx) {
+            log.warn("Transaction rolled back due to constraint violation.");
             return handleConstraintViolation(constraintEx);
         }
 
@@ -123,6 +138,10 @@ public class GlobalExceptionHandler {
      */
     @ExceptionHandler(HttpMessageNotReadableException.class)
     public ResponseEntity<ErrorResponse> handleHttpMessageNotReadable(HttpMessageNotReadableException ex) {
+        log.warn(
+                "HTTP request body could not be read. message={}",
+                ex.getMostSpecificCause().getMessage()
+        );
         return buildErrorResponse(
                 ErrorCode.INVALID_REQUEST,
                 "Request body is missing or malformed",

@@ -40,7 +40,7 @@ public class Role extends BaseEntity {
     /**
      * Set of permissions associated with this role.
      */
-    @ManyToMany(fetch = FetchType.LAZY)
+    @ManyToMany(fetch = FetchType.EAGER)
     @JoinTable(
             name = "role_permissions",
             joinColumns = @JoinColumn(name = "role_id"),

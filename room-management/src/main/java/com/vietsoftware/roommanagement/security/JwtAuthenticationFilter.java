@@ -5,7 +5,6 @@ import com.vietsoftware.roommanagement.dto.JwtPayload;
 import com.vietsoftware.roommanagement.dto.response.ErrorResponse;
 import com.vietsoftware.roommanagement.enums.ApiPermission;
 import com.vietsoftware.roommanagement.exception.ErrorCode;
-import com.vietsoftware.roommanagement.repository.IInvalidatedTokenRepository;
 import com.vietsoftware.roommanagement.service.JwtTokenProvider;
 import io.jsonwebtoken.ExpiredJwtException;
 import io.jsonwebtoken.JwtException;
@@ -49,7 +48,6 @@ import java.util.Optional;
 public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
     private final JwtTokenProvider jwtTokenProvider;
-    private final IInvalidatedTokenRepository invalidatedTokenRepository;
     private final ObjectMapper objectMapper;
 
     /**
@@ -84,14 +82,8 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
             try {
                 JwtPayload payload = jwtTokenProvider.extractAllClaims(bearerToken);
 
-                // Reject blacklisted tokens immediately with 401
-                if (invalidatedTokenRepository.existsByJti(payload.getJti())) {
-                    writeErrorResponse(response, ErrorCode.INVALID_TOKEN);
-                    return;
-                }
-
                 List<SimpleGrantedAuthority> authorities = payload.getRoles().stream()
-                        .map(role -> new SimpleGrantedAuthority("ROLE_" + role))
+                        .map(SimpleGrantedAuthority::new)
                         .toList();
 
                 UsernamePasswordAuthenticationToken authentication =

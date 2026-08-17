@@ -40,7 +40,7 @@ public class UserGroup extends BaseEntity {
     /**
      * Set of security roles assigned to this group.
      */
-    @ManyToMany(fetch = FetchType.LAZY)
+    @ManyToMany(fetch = FetchType.EAGER)
     @JoinTable(
             name = "user_group_roles",
             joinColumns = @JoinColumn(name = "group_id"),

@@ -1,6 +1,5 @@
 package com.vietsoftware.roommanagement.scheduler;
 
-import com.vietsoftware.roommanagement.repository.IInvalidatedTokenRepository;
 import com.vietsoftware.roommanagement.repository.IRefreshTokenRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -22,7 +21,6 @@ import java.time.Instant;
 public class TokenCleanupScheduler {
 
     private final IRefreshTokenRepository refreshTokenRepository;
-    private final IInvalidatedTokenRepository invalidatedTokenRepository;
 
     /**
      * Periodically purges expired tokens from the database.
@@ -35,9 +33,7 @@ public class TokenCleanupScheduler {
         log.info("Starting scheduled token cleanup job at timestamp: {}", now);
 
         int deletedRefreshTokens = refreshTokenRepository.deleteAllExpired(now);
-        int deletedInvalidatedTokens = invalidatedTokenRepository.deleteAllExpired(now);
 
-        log.info("Token cleanup completed: purged {} expired refresh token(s) and {} blacklisted access token(s).",
-                deletedRefreshTokens, deletedInvalidatedTokens);
+        log.info("Token cleanup completed: purged {} expired refresh token(s).", deletedRefreshTokens);
     }
 }

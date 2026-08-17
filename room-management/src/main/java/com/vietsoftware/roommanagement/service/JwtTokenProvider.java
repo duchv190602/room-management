@@ -83,44 +83,43 @@ public class JwtTokenProvider {
      * @throws JwtException         if signature verification fails, token is malformed, or token is expired
      * @throws IllegalArgumentException if token is null or empty
      */
-    @SuppressWarnings("unchecked")
     public JwtPayload extractAllClaims(String token) {
         Claims claims = parseClaims(token);
+
+        Object rolesObj = claims.get(SecurityConstants.CLAIM_ROLES);
+        List<String> roles = List.of();
+        if (rolesObj instanceof List<?> list) {
+            roles = list.stream()
+                    .filter(String.class::isInstance)
+                    .map(String.class::cast)
+                    .toList();
+        }
+
         return new JwtPayload(
                 UUID.fromString(claims.getId()),
                 UUID.fromString(claims.getSubject()),
                 claims.get(SecurityConstants.CLAIM_USERNAME, String.class),
-                (List<String>) claims.get(SecurityConstants.CLAIM_ROLES),
+                roles,
                 claims.getExpiration()
         );
     }
 
     /**
-     * Extracts the raw JWT token string from the {@code Authorization: Bearer <token>} header.
+     * Extracts the raw JWT token string from the {@code Authorization: Bearer <token>} header of an HTTP request.
      *
      * @param request HTTP servlet request
      * @return raw JWT string, or {@code null} if header is absent or not in Bearer format
      */
     public static String extractBearerToken(HttpServletRequest request) {
-        return extractBearerToken(request.getHeader(SecurityConstants.AUTH_HEADER));
-    }
-
-    /**
-     * Extracts the raw JWT token string from a raw Authorization header value.
-     *
-     * @param authorizationHeader raw value of the {@code Authorization} header
-     * @return raw JWT string, or {@code null} if header is absent or not in Bearer format
-     */
-    public static String extractBearerToken(String authorizationHeader) {
+        if (request == null) {
+            return null;
+        }
+        String authorizationHeader = request.getHeader(SecurityConstants.AUTH_HEADER);
         if (StringUtils.hasText(authorizationHeader)) {
             String trimmedHeader = authorizationHeader.trim();
             if (trimmedHeader.startsWith(SecurityConstants.BEARER_PREFIX)) {
                 return trimmedHeader.substring(SecurityConstants.BEARER_PREFIX.length()).trim();
             }
-            if (trimmedHeader.startsWith("Bearer")) {
-                return trimmedHeader.substring(6).trim();
-            }
-            return trimmedHeader;
         }
         return null;
     }

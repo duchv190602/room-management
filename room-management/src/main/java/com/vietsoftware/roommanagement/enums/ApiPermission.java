@@ -6,6 +6,7 @@ import org.springframework.util.AntPathMatcher;
 import java.util.Arrays;
 import java.util.Optional;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 /**
  * Enumeration defining all API permissions, mapping URI patterns and HTTP methods to allowed roles.
@@ -50,49 +51,49 @@ public enum ApiPermission {
      * Endpoint for logging out (invalidates access token and revokes refresh token).
      * Requires authentication.
      */
-    AUTH_LOGOUT("/api/v1/auth/logout", "POST", Set.of("USER", "ADMIN")),
+    AUTH_LOGOUT("/api/v1/auth/logout", "POST", Set.of(RoleType.USER, RoleType.ADMIN)),
 
     // ─── ROOM (USER & ADMIN) ─────────────────────────────────────────────
     /**
      * Search and paginate active rooms (accessible by USER and ADMIN).
      */
-    ROOM_SEARCH_ACTIVE("/api/v1/rooms/active", "GET", Set.of("USER", "ADMIN")),
+    ROOM_SEARCH_ACTIVE("/api/v1/rooms/active", "GET", Set.of(RoleType.USER, RoleType.ADMIN)),
 
     /**
      * Retrieve active room details by ID (accessible by USER and ADMIN).
      */
-    ROOM_GET_ACTIVE_BY_ID("/api/v1/rooms/active/*", "GET", Set.of("USER", "ADMIN")),
+    ROOM_GET_ACTIVE_BY_ID("/api/v1/rooms/active/*", "GET", Set.of(RoleType.USER, RoleType.ADMIN)),
 
     // ─── ROOM (ADMIN ONLY) ────────────────────────────────────────────────
     /**
      * Search and paginate all rooms across all statuses (ADMIN only).
      */
-    ROOM_SEARCH_ALL("/api/v1/rooms", "GET", Set.of("ADMIN")),
+    ROOM_SEARCH_ALL("/api/v1/rooms", "GET", Set.of(RoleType.ADMIN)),
 
     /**
      * Retrieve room details by ID regardless of status (ADMIN only).
      */
-    ROOM_GET_BY_ID("/api/v1/rooms/*", "GET", Set.of("ADMIN")),
+    ROOM_GET_BY_ID("/api/v1/rooms/*", "GET", Set.of(RoleType.ADMIN)),
 
     /**
      * Create a new room entry (ADMIN only).
      */
-    ROOM_CREATE("/api/v1/rooms", "POST", Set.of("ADMIN")),
+    ROOM_CREATE("/api/v1/rooms", "POST", Set.of(RoleType.ADMIN)),
 
     /**
      * Update room details (ADMIN only).
      */
-    ROOM_UPDATE("/api/v1/rooms/*", "PUT", Set.of("ADMIN")),
+    ROOM_UPDATE("/api/v1/rooms/*", "PUT", Set.of(RoleType.ADMIN)),
 
     /**
      * Update room operational status (ADMIN only).
      */
-    ROOM_UPDATE_STATUS("/api/v1/rooms/*/status", "PATCH", Set.of("ADMIN")),
+    ROOM_UPDATE_STATUS("/api/v1/rooms/*/status", "PATCH", Set.of(RoleType.ADMIN)),
 
     /**
      * Soft delete a room entry (ADMIN only).
      */
-    ROOM_DELETE("/api/v1/rooms/*", "DELETE", Set.of("ADMIN"));
+    ROOM_DELETE("/api/v1/rooms/*", "DELETE", Set.of(RoleType.ADMIN));
 
     /**
      * Ant-style URI path pattern for matching incoming request URIs.
@@ -105,10 +106,10 @@ public enum ApiPermission {
     private final String httpMethod;
 
     /**
-     * Set of role names allowed to access this endpoint.
+     * Set of role types allowed to access this endpoint.
      * An empty set means the endpoint is public (no authentication required).
      */
-    private final Set<String> allowedRoles;
+    private final Set<RoleType> allowedRoles;
 
     private static final AntPathMatcher PATH_MATCHER = new AntPathMatcher();
 
@@ -117,9 +118,9 @@ public enum ApiPermission {
      *
      * @param uriPattern   Ant-style path pattern
      * @param httpMethod   HTTP method name
-     * @param allowedRoles set of permitted role names (empty for public)
+     * @param allowedRoles set of permitted role types (empty for public)
      */
-    ApiPermission(String uriPattern, String httpMethod, Set<String> allowedRoles) {
+    ApiPermission(String uriPattern, String httpMethod, Set<RoleType> allowedRoles) {
         this.uriPattern = uriPattern;
         this.httpMethod = httpMethod;
         this.allowedRoles = allowedRoles;
@@ -132,6 +133,17 @@ public enum ApiPermission {
      */
     public boolean isPublic() {
         return allowedRoles.isEmpty();
+    }
+
+    /**
+     * Returns set of allowed role names as String identifiers.
+     *
+     * @return set of role name strings
+     */
+    public Set<String> getAllowedRoleNames() {
+        return allowedRoles.stream()
+                .map(RoleType::name)
+                .collect(Collectors.toSet());
     }
 
     /**
@@ -158,6 +170,7 @@ public enum ApiPermission {
         if (isPublic()) {
             return true;
         }
-        return userRoles.stream().anyMatch(allowedRoles::contains);
+        Set<String> allowedNames = getAllowedRoleNames();
+        return userRoles.stream().anyMatch(allowedNames::contains);
     }
 }

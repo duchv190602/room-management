@@ -79,7 +79,6 @@ public class CustomAuthorizationFilter extends OncePerRequestFilter {
         // 4. Check role authorization
         Set<String> userRoles = authentication.getAuthorities().stream()
                 .map(GrantedAuthority::getAuthority)
-                .map(authority -> authority.startsWith("ROLE_") ? authority.substring(5) : authority)
                 .collect(Collectors.toSet());
 
         if (!permission.isAccessibleBy(userRoles)) {

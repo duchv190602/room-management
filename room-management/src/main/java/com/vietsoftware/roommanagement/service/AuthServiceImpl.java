@@ -1,22 +1,20 @@
 package com.vietsoftware.roommanagement.service;
 
 import com.vietsoftware.roommanagement.configuration.JwtProperties;
-import com.vietsoftware.roommanagement.constant.SecurityConstants;
 import com.vietsoftware.roommanagement.dto.JwtPayload;
 import com.vietsoftware.roommanagement.dto.request.LoginRequest;
 import com.vietsoftware.roommanagement.dto.request.RefreshTokenRequest;
 import com.vietsoftware.roommanagement.dto.request.RegisterRequest;
 import com.vietsoftware.roommanagement.dto.response.AuthResponse;
 import com.vietsoftware.roommanagement.dto.response.UserResponse;
-import com.vietsoftware.roommanagement.entity.InvalidatedToken;
 import com.vietsoftware.roommanagement.entity.RefreshToken;
 import com.vietsoftware.roommanagement.entity.User;
 import com.vietsoftware.roommanagement.entity.UserGroup;
+import com.vietsoftware.roommanagement.enums.UserGroupType;
 import com.vietsoftware.roommanagement.enums.UserStatus;
 import com.vietsoftware.roommanagement.exception.AppException;
 import com.vietsoftware.roommanagement.exception.ErrorCode;
 import com.vietsoftware.roommanagement.mapper.IUserMapper;
-import com.vietsoftware.roommanagement.repository.IInvalidatedTokenRepository;
 import com.vietsoftware.roommanagement.repository.IRefreshTokenRepository;
 import com.vietsoftware.roommanagement.repository.IUserGroupRepository;
 import com.vietsoftware.roommanagement.repository.IUserRepository;
@@ -54,7 +52,6 @@ public class AuthServiceImpl implements IAuthService {
     private final IUserRepository userRepository;
     private final IUserGroupRepository userGroupRepository;
     private final IRefreshTokenRepository refreshTokenRepository;
-    private final IInvalidatedTokenRepository invalidatedTokenRepository;
     private final JwtTokenProvider jwtTokenProvider;
     private final IUserMapper userMapper;
     private final PasswordEncoder passwordEncoder;
@@ -80,7 +77,7 @@ public class AuthServiceImpl implements IAuthService {
             throw new AppException(ErrorCode.EMAIL_ALREADY_EXISTS);
         }
 
-        UserGroup defaultGroup = userGroupRepository.findByName(SecurityConstants.GROUP_DEFAULT_USER)
+        UserGroup defaultGroup = userGroupRepository.findByName(UserGroupType.DEFAULT_USER_GROUP.name())
                 .orElseThrow(() -> new AppException(ErrorCode.INTERNAL_SERVER_ERROR));
 
         User user = User.builder()
@@ -155,8 +152,8 @@ public class AuthServiceImpl implements IAuthService {
             throw new AppException(ErrorCode.TOKEN_EXPIRED);
         }
 
-        // Fetch user with roles (JOIN FETCH) to construct new access token claims
-        User user = userRepository.findActiveUserWithRolesByUsername(stored.getUser().getUsername())
+        // Fetch user with roles (JOIN FETCH) by ID to construct new access token claims
+        User user = userRepository.findActiveUserWithRolesById(stored.getUser().getId())
                 .orElseThrow(() -> new AppException(ErrorCode.USER_NOT_FOUND));
 
         Set<String> roles = extractRoleNames(user);
@@ -177,21 +174,15 @@ public class AuthServiceImpl implements IAuthService {
     }
 
     /**
-     * Invalidates the access token (blacklists its jti) and deletes the provided refresh token from DB.
+     * Deletes the provided refresh token from DB.
      *
-     * @param accessToken  raw JWT access token string from the Authorization header
      * @param refreshToken raw refresh token string to revoke
      * @throws AppException with {@code INVALID_TOKEN} if refresh token is not found
      */
     @Override
     @Transactional
-    public void logout(String accessToken, String refreshToken) {
+    public void logout(String refreshToken) {
         log.info("Processing logout request.");
-
-        // Blacklist the current access token by its jti
-        if (StringUtils.hasText(accessToken)) {
-            blacklistAccessToken(accessToken);
-        }
 
         // Delete the refresh token from DB
         if (StringUtils.hasText(refreshToken)) {
@@ -243,30 +234,4 @@ public class AuthServiceImpl implements IAuthService {
         refreshTokenRepository.save(refreshToken);
     }
 
-    /**
-     * Adds the given access token's JTI to the blacklist table.
-     * Only processes tokens that are still syntactically valid (has a parseable jti).
-     * Silently skips blacklisting if the token is already expired or malformed,
-     * since such tokens are already effectively invalid.
-     *
-     * @param accessToken raw JWT access token string
-     */
-    private void blacklistAccessToken(String accessToken) {
-        try {
-            JwtPayload payload = jwtTokenProvider.extractAllClaims(accessToken);
-            if (!invalidatedTokenRepository.existsByJti(payload.getJti())) {
-                Instant expiresAt = payload.getExpiresAt().toInstant();
-                InvalidatedToken invalidated = InvalidatedToken.builder()
-                        .jti(payload.getJti())
-                        .userId(payload.getUserId())
-                        .expiresAt(expiresAt)
-                        .build();
-                invalidatedTokenRepository.save(invalidated);
-                log.debug("Access token jti [{}] blacklisted.", payload.getJti());
-            }
-        } catch (Exception e) {
-            // Token may already be expired/malformed; still proceed with logout
-                log.debug("Could not blacklist access token: {}", e.getMessage());
-        }
-    }
 }

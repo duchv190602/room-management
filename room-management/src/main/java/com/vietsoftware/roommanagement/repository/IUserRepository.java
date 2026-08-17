@@ -32,13 +32,24 @@ public interface IUserRepository extends JpaRepository<User, UUID> {
      * @return an {@link Optional} containing the user with eagerly fetched groups and roles
      */
     @Query("""
-            SELECT DISTINCT u FROM User u
-            LEFT JOIN FETCH u.groups g
-            LEFT JOIN FETCH g.roles
+            SELECT u FROM User u
             WHERE u.username = :username
             AND u.status = 'ACTIVE'
             """)
     Optional<User> findActiveUserWithRolesByUsername(@Param("username") String username);
+
+    /**
+     * Finds an active user by ID. EAGER fetching automatically loads groups and roles.
+     *
+     * @param id user UUID primary key
+     * @return an {@link Optional} containing the user
+     */
+    @Query("""
+            SELECT u FROM User u
+            WHERE u.id = :id
+            AND u.status = 'ACTIVE'
+            """)
+    Optional<User> findActiveUserWithRolesById(@Param("id") UUID id);
 
     /**
      * Checks if a user record exists with the given username.

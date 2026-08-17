@@ -44,9 +44,8 @@ public interface IAuthService {
      * Invalidates the current access token (adds it to the blacklist) and deletes the provided refresh token.
      * The user will need to log in again to obtain new tokens.
      *
-     * @param accessToken  raw JWT access token string from the Authorization header
      * @param refreshToken raw refresh token string to delete
      * @throws AppException with {@code INVALID_TOKEN} if the refresh token is not found
      */
-    void logout(String accessToken, String refreshToken);
+    void logout( String refreshToken);
 }

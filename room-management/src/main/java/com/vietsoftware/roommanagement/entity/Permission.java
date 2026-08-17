@@ -46,7 +46,7 @@ public class Permission extends BaseEntity {
     /**
      * Roles that are granted this permission.
      */
-    @ManyToMany(mappedBy = "permissions", fetch = FetchType.LAZY)
+    @ManyToMany(mappedBy = "permissions", fetch = FetchType.EAGER)
     @Builder.Default
     Set<Role> roles = new HashSet<>();
 }

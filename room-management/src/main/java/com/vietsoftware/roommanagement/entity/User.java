@@ -1,6 +1,7 @@
 package com.vietsoftware.roommanagement.entity;
 
 import com.vietsoftware.roommanagement.constant.ApiConstants;
+import com.vietsoftware.roommanagement.converter.CryptoAttributeConverter;
 import com.vietsoftware.roommanagement.enums.UserStatus;
 import jakarta.persistence.*;
 import jakarta.validation.constraints.Email;
@@ -39,12 +40,13 @@ public class User extends BaseEntity {
     String username;
 
     /**
-     * Unique email address.
+     * Unique email address (encrypted in database using AES-256 via {@link CryptoAttributeConverter}).
      */
     @NotBlank
     @Email
     @Size(max = ApiConstants.EMAIL_MAX_LENGTH)
-    @Column(name = "email", nullable = false, unique = true, length = 100)
+    @Convert(converter = CryptoAttributeConverter.class)
+    @Column(name = "email", nullable = false, unique = true, length = 512)
     String email;
 
     /**
@@ -74,7 +76,7 @@ public class User extends BaseEntity {
     /**
      * User groups that this user belongs to. Resolves roles and permissions transitively.
      */
-    @ManyToMany(fetch = FetchType.LAZY)
+    @ManyToMany(fetch = FetchType.EAGER)
     @JoinTable(
             name = "user_group_members",
             joinColumns = @JoinColumn(name = "user_id"),

@@ -90,7 +90,6 @@ public class AuthController {
     /**
      * Logs out the current user by blacklisting the access token and deleting the refresh token.
      *
-     * @param request the full {@code Authorization: Bearer <accessToken>} header value
      * @param refreshTokenRequest payload containing the raw refresh token to revoke
      * @return HTTP 200 with no body on success
      */
@@ -102,11 +101,9 @@ public class AuthController {
     })
     @PostMapping("/logout")
     public ResponseEntity<Void> logout(
-            HttpServletRequest request,
             @Valid @RequestBody RefreshTokenRequest refreshTokenRequest) {
 
-        String accessToken = JwtTokenProvider.extractBearerToken(request);
-        authService.logout(accessToken, refreshTokenRequest.getRefreshToken());
+        authService.logout( refreshTokenRequest.getRefreshToken());
         return ResponseEntity.ok().build();
     }
 }

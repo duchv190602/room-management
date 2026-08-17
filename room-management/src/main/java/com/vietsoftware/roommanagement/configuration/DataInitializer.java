@@ -1,11 +1,12 @@
 package com.vietsoftware.roommanagement.configuration;
 
-import com.vietsoftware.roommanagement.constant.SecurityConstants;
 import com.vietsoftware.roommanagement.entity.Permission;
 import com.vietsoftware.roommanagement.entity.Role;
 import com.vietsoftware.roommanagement.entity.User;
 import com.vietsoftware.roommanagement.entity.UserGroup;
 import com.vietsoftware.roommanagement.enums.ApiPermission;
+import com.vietsoftware.roommanagement.enums.RoleType;
+import com.vietsoftware.roommanagement.enums.UserGroupType;
 import com.vietsoftware.roommanagement.enums.UserStatus;
 import com.vietsoftware.roommanagement.repository.IPermissionRepository;
 import com.vietsoftware.roommanagement.repository.IRoleRepository;
@@ -23,9 +24,9 @@ import java.util.*;
 
 /**
  * Startup application runner component that synchronizes {@link ApiPermission} enum definitions to DB,
- * seeds default roles, user groups, and default admin account on every application start.
+ * seeds default roles from {@link RoleType}, user groups from {@link UserGroupType}, and default admin account on every application start.
  *
- * <p>Idempotent: uses findByName / findByUsername with upsert semantics so repeated restarts are safe.</p>
+ * <p>Idempotent: uses findByName / findByUsername with upsert semantics so repeated restarts and enum changes are safely synchronized.</p>
  */
 @Slf4j
 @Component
@@ -50,7 +51,7 @@ public class DataInitializer implements ApplicationRunner {
         Map<String, Permission> permissionMap = syncPermissions();
         Map<String, Role> roleMap = seedRoles(permissionMap);
         Map<String, UserGroup> groupMap = seedUserGroups(roleMap);
-        seedDefaultAdmin(groupMap.get(SecurityConstants.GROUP_ADMIN));
+        seedDefaultAdmin(groupMap.get(UserGroupType.ADMIN_GROUP.name()));
         log.info("DataInitializer completed successfully.");
     }
 
@@ -78,8 +79,8 @@ public class DataInitializer implements ApplicationRunner {
     }
 
     /**
-     * Seeds roles (ADMIN, USER) and assigns permissions from the synced permission map.
-     * Role membership is re-evaluated on each startup from the {@link ApiPermission} enum.
+     * Seeds roles from {@link RoleType} and assigns permissions from the synced permission map.
+     * Role membership is re-evaluated on each startup from {@link ApiPermission} to ensure changes in Enum are safely synced to DB.
      *
      * @param permissionMap name → permission entity map from {@link #syncPermissions()}
      * @return map of role name → saved {@link Role} entity for downstream use
@@ -87,25 +88,28 @@ public class DataInitializer implements ApplicationRunner {
     private Map<String, Role> seedRoles(Map<String, Permission> permissionMap) {
         Map<String, Role> roleMap = new LinkedHashMap<>();
 
-        // Collect which permissions each role should have
-        Map<String, Set<Permission>> roleToPermissions = new LinkedHashMap<>();
-        roleToPermissions.put(SecurityConstants.ROLE_ADMIN, new LinkedHashSet<>());
-        roleToPermissions.put(SecurityConstants.ROLE_USER, new LinkedHashSet<>());
+        // Collect which permissions each RoleType should have
+        Map<RoleType, Set<Permission>> roleToPermissions = new LinkedHashMap<>();
+        for (RoleType roleType : RoleType.values()) {
+            roleToPermissions.put(roleType, new LinkedHashSet<>());
+        }
 
         for (ApiPermission apiPermission : ApiPermission.values()) {
             Permission permission = permissionMap.get(apiPermission.name());
-            for (String roleName : apiPermission.getAllowedRoles()) {
-                roleToPermissions.computeIfAbsent(roleName, k -> new LinkedHashSet<>()).add(permission);
+            for (RoleType roleType : apiPermission.getAllowedRoles()) {
+                roleToPermissions.computeIfAbsent(roleType, k -> new LinkedHashSet<>()).add(permission);
             }
         }
 
-        roleToPermissions.forEach((roleName, permissions) -> {
+        roleToPermissions.forEach((roleType, permissions) -> {
+            String roleName = roleType.name();
             Role role = roleRepository.findByName(roleName).orElseGet(() ->
                     roleRepository.save(Role.builder()
                             .name(roleName)
-                            .description(roleName + " role")
+                            .description(roleType.getDescription())
                             .build())
             );
+            role.setDescription(roleType.getDescription());
             role.getPermissions().clear();
             role.getPermissions().addAll(permissions);
             roleMap.put(roleName, roleRepository.save(role));
@@ -116,15 +120,21 @@ public class DataInitializer implements ApplicationRunner {
     }
 
     /**
-     * Seeds default user groups (ADMIN_GROUP, DEFAULT_USER_GROUP) and links each to the corresponding role.
+     * Seeds default user groups from {@link UserGroupType} and links each group to its default role.
      *
      * @param roleMap name → role entity map from {@link #seedRoles(Map)}
      * @return map of group name → saved {@link UserGroup} entity
      */
     private Map<String, UserGroup> seedUserGroups(Map<String, Role> roleMap) {
         Map<String, UserGroup> groupMap = new LinkedHashMap<>();
-        groupMap.put(SecurityConstants.GROUP_ADMIN, seedGroup(SecurityConstants.GROUP_ADMIN, "Administrator group", SecurityConstants.ROLE_ADMIN, roleMap));
-        groupMap.put(SecurityConstants.GROUP_DEFAULT_USER, seedGroup(SecurityConstants.GROUP_DEFAULT_USER, "Default user group", SecurityConstants.ROLE_USER, roleMap));
+
+        for (UserGroupType groupType : UserGroupType.values()) {
+            String groupName = groupType.name();
+            String defaultRoleName = groupType.getDefaultRole().name();
+            UserGroup group = seedGroup(groupName, groupType.getDescription(), defaultRoleName, roleMap);
+            groupMap.put(groupName, group);
+        }
+
         return groupMap;
     }
 
@@ -145,6 +155,7 @@ public class DataInitializer implements ApplicationRunner {
                         .build())
         );
 
+        group.setDescription(description);
         Role role = roleMap.get(roleName);
         if (role != null) {
             group.getRoles().add(role);
